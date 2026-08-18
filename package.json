@@ -1,0 +1,31 @@
+{
+  "name": "bare-acl",
+  "version": "0.1.0",
+  "description": "Write a Win32 DACL and read it back. A round trip, never effective rights.",
+  "exports": {
+    ".": "./index.js",
+    "./package": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "binding.c",
+    "binding.js",
+    "CMakeLists.txt",
+    "prebuilds"
+  ],
+  "addon": true,
+  "scripts": {
+    "test": "bare test.js"
+  },
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "bare-make": "^1.8.0",
+    "cmake-bare": "^1.0.0",
+    "bare-tap": "^1.0.0",
+    "bare-assert": "^1.0.0",
+    "bare-fs": "^4.0.0",
+    "bare-path": "^3.0.0",
+    "bare-os": "^3.0.0",
+    "bare-subprocess": "^5.0.0"
+  }
+}
