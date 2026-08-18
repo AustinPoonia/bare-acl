@@ -49,7 +49,17 @@ them are adversarial and break the boundary using `icacls`, the OS's own tool, s
 negative case cannot pass because of a bug shared between the writing and the
 reading — the failure a self-consistent round trip is otherwise wide open to.
 
-`prebuilds/win32-x64` is **not** built here: this addon has only ever been compiled
-and executed on ARM64. The x64 binary is produced and exercised by CI, because
-shipping a native binary that has never been run anywhere is the failure this
-project keeps refusing.
+`prebuilds/win32-x64` is not built on the ARM64 machine, and the reason is not
+convenience. `clang-cl` can target `x86_64-pc-windows-msvc` from there and the SDK
+ships x64 libs, so the binary *could* be cross-compiled — it would then be a native
+security binary that had never executed anywhere before shipping, which is the
+failure this project keeps refusing. `custody.js`'s whole argument is that a boundary
+you did not measure is not a boundary.
+
+So `.github/workflows/windows.yml` builds it on an x64 Windows runner and runs the
+same seven cases there. That job also asserts the PE header is `0x8664` before
+uploading, because a toolchain misconfigured to target the host's other architecture
+would otherwise place an ARM64 binary under an x64 path and nothing downstream looks.
+
+Neither architecture substitutes for the other: the VM says nothing about x64 and the
+runner says nothing about ARM64. `prebuilds/` is the union of what has actually run.

@@ -1,0 +1,113 @@
+# Build the x64 addon on Windows, and run it there.
+#
+# ## Why this exists rather than a cross-compile
+#
+# `clang-cl` can target `x86_64-pc-windows-msvc` from the ARM64 development VM, and
+# the SDK ships x64 libs, so the binary could be produced without this job. It would
+# then be a native security binary that had never executed anywhere before shipping,
+# which is the failure this project keeps refusing — `custody.js`'s whole argument is
+# that a boundary you did not measure is not a boundary. So the x64 prebuild is built
+# *and exercised* on an x64 Windows runner, by the same suite that measured ARM64.
+#
+# ## Why it is not part of the thirty-one-repo sweep
+#
+# That sweep's unit of work is every repo installed side by side under one parent, and
+# its coverage assertion compares against the whole set; a Windows leg of it would be
+# the whole matrix on Windows. This is one repo with no siblings — `bare-acl` depends
+# on `bare-os` and nothing in the tree — so it can stand alone, which keeps a private
+# repo's 2x Windows multiplier attached to a job measured in minutes rather than to a
+# 25-minute sweep.
+#
+# ## The one thing to watch
+#
+# `runs-on: windows-latest` is x64. This job therefore proves the DACL logic on x64 and
+# says nothing about ARM64, exactly as the ARM64 VM says nothing about x64. Both halves
+# are needed and neither substitutes for the other; `prebuilds/` is the union.
+name: windows
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  x64:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      # bare's win32 toolchain is clang-cl, not MSVC's cl.exe:
+      # `cmake-toolchains/win32-x64.cmake` includes `find-llvm.cmake`, which requires
+      # eight LLVM tools and looks in `C:/Program Files/LLVM/bin` first. The runner
+      # image normally ships LLVM there; this checks rather than assuming, because a
+      # missing toolchain fails at `generate` with a message about clang-cl that reads
+      # like a code problem.
+      - name: Assert the LLVM toolchain find-llvm.cmake requires
+        shell: cmd
+        run: |
+          set MISSING=
+          for %%t in (clang-cl llvm-lib llvm-nm llvm-objdump llvm-ranlib llvm-mt llvm-strip llvm-rc) do (
+            if exist "C:\Program Files\LLVM\bin\%%t.exe" (echo OK   %%t) else (echo MISSING %%t & set MISSING=1)
+          )
+          if defined MISSING (
+            echo one or more required LLVM tools are absent; installing LLVM
+            choco install llvm -y --no-progress
+          )
+          "C:\Program Files\LLVM\bin\clang-cl.exe" --version
+
+      - name: Install
+        run: npm install --no-audit --no-fund
+
+      - name: Build and install the prebuild
+        shell: cmd
+        run: |
+          set PATH=C:\Program Files\LLVM\bin;%PATH%
+          call npx bare-make generate
+          if errorlevel 1 exit /b 1
+          call npx bare-make build
+          if errorlevel 1 exit /b 1
+          call npx bare-make install
+          if errorlevel 1 exit /b 1
+
+      # Redirected to a file with the status captured on the very next line, and the
+      # ok/not-ok lines counted separately afterwards. Never a pipe: this project has
+      # already shipped a green pipeline, and on this very addon a mutation run reported
+      # exit 0 while three cases failed because `findstr` was between the suite and
+      # `ERRORLEVEL`.
+      - name: Run the suite on x64 Windows
+        shell: cmd
+        run: |
+          call npx bare test.js > tap.txt 2>&1
+          set SUITE=%ERRORLEVEL%
+          type tap.txt
+          echo SUITE_EXIT=%SUITE%
+          find /c "not ok " tap.txt
+          if not "%SUITE%"=="0" exit /b 1
+          findstr /b /c:"not ok " tap.txt >nul && (echo a not-ok line with a zero exit is still a failure & exit /b 1) || exit /b 0
+
+      - name: Confirm the binary is x64 and was produced by this run
+        shell: pwsh
+        run: |
+          $p = "prebuilds/win32-x64/bare-acl.bare"
+          if (-not (Test-Path $p)) { throw "no x64 prebuild at $p" }
+          $b = [IO.File]::ReadAllBytes($p)
+          $o = [BitConverter]::ToInt32($b, 60)
+          $machine = [BitConverter]::ToUInt16($b, $o + 4)
+          # 0x8664 is IMAGE_FILE_MACHINE_AMD64. Asserted rather than trusted: a
+          # toolchain misconfigured to target the host's other architecture would
+          # otherwise ship an ARM64 binary under an x64 path, and nothing downstream
+          # inspects the header.
+          Write-Output ("machine=0x" + $machine.ToString("X4") + " size=" + $b.Length)
+          if ($machine -ne 0x8664) { throw ("expected AMD64 (0x8664), got 0x" + $machine.ToString("X4")) }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bare-acl-win32-x64
+          path: prebuilds/win32-x64/bare-acl.bare
+          if-no-files-found: error
