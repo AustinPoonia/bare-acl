@@ -7,25 +7,32 @@
     "./package": "./package.json"
   },
   "files": [
-    "index.js",
+    "CMakeLists.txt",
     "binding.c",
     "binding.js",
-    "CMakeLists.txt",
-    "prebuilds"
+    "index.js",
+    "prebuilds",
+    "tsconfig.json",
+    "vendor.d.ts"
   ],
   "addon": true,
   "scripts": {
-    "test": "bare test.js"
+    "test": "bare test.js",
+    "typecheck": "tsc"
   },
   "license": "Apache-2.0",
+  "dependencies": {
+    "bare-os": "^3.0.0"
+  },
   "devDependencies": {
-    "bare-make": "^1.8.0",
-    "cmake-bare": "^1.0.0",
-    "bare-tap": "^1.0.0",
     "bare-assert": "^1.0.0",
     "bare-fs": "^4.0.0",
+    "bare-make": "^1.8.0",
     "bare-path": "^3.0.0",
-    "bare-os": "^3.0.0",
-    "bare-subprocess": "^5.0.0"
+    "bare-runtime": "^1.30.3",
+    "bare-subprocess": "^5.0.0",
+    "bare-tap": "^1.0.0",
+    "cmake-bare": "^1.0.0",
+    "typescript": "^7.0.2"
   }
 }

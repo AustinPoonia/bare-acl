@@ -48,8 +48,22 @@ function icacls (...args) {
 // Printed rather than silently skipped, for the reason `custody.test.js` gives: a
 // host that could not measure and did not say so is indistinguishable from one that
 // measured and passed.
+//
+// ## Why the marker carries a name, and why it is not plain `# NOT MEASURED:`
+//
+// Because that exact string is already load-bearing for a *different* finding.
+// `all-repos.sh` counts `^# MEASURED:` and `^# NOT MEASURED:` across every log and
+// decides one thing with them: whether this run proved `ROADMAP.md` §4's **FAT
+// volume** finding. Its own output says so -- "built the volume they assert about",
+// "this host can build a FAT volume". Emitting the bare marker from here would have
+// been counted as FAT skips, and a Linux CI run would have reported ten unmeasured
+// FAT cases when four of them are FAT and six are ACLs.
+//
+// So this names its finding. The bracket falls before the colon, so it does not match
+// the script's anchored pattern and the FAT accounting stays exactly as narrow and as
+// correct as it was.
 function unmeasured (why) {
-  console.log(`# NOT MEASURED: ${why}`)
+  console.log(`# NOT MEASURED [win32-acl]: ${why}`)
 }
 
 test('this platform is named rather than silently skipped', () => {
